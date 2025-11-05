@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Resume editor</title>
+  <meta name="viewport" content="width=900">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Lato:wght@400;700&display=swap');
+    html, body {
+      height: 100%; margin: 0; padding: 0;
+      background: #f7f9fc;
+      font-family: 'Noto Sans KR', 'Lato', Arial, sans-serif;
+      color: #222;
+    }
+    #toolbar {
+      width: 100%; background: #eaf0ff; border-bottom: 2px solid #3262b8;
+      display: flex; flex-wrap: wrap; padding: 9px 0 7px 0; align-items: center; gap:13px;
+      user-select: none; position: sticky; top: 0; z-index: 13;
+    }
+    #toolbar label, #toolbar button, #toolbar select, #toolbar input[type="file"], #toolbar input[type="range"] {
+      font-size: 1em; padding: 6px 9px; border-radius: 7px; border: none; background: #fff; cursor: pointer; font-family: inherit;
+    }
+    #toolbar button:active { background: #c2ddff;}
+    #toolbar input[type="file"] { padding: 0; background: none; }
+    #profile-photo-ui { display: inline-block; }
+    .hide-print { display: inline-block;}
+    #saveBtn {font-weight:bold; color:#1675e0;}
+    .container {
+      width: 210mm; height: 297mm; max-width: 210mm; min-width:210mm;
+      min-height: 297mm; max-height:297mm;
+      margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden;
+      display: flex; position:relative; box-shadow:0 2px 14px rgba(0,0,0,0.10);
+    }
+    aside.left {
+      min-width:120px; max-width:310px; width:33%;
+      background: linear-gradient(130deg,#eef4fb 76%, #f7f8fb 100%);
+      padding: 34px 18px 30px 23px;
+      display: flex; flex-direction: column; align-items: flex-start;
+      height: 297mm; position: relative; transition: width 0.15s;
+      box-sizing: border-box; overflow:auto;
+    }
+    .resize-bar {
+      width: 8px; background: #cbe0fa; cursor: ew-resize;
+      position: absolute; z-index: 5; left:0; top:0; bottom:0; right:unset;
+      transition:background 0.17s;
+    }
+    aside.left + .resize-bar {left:unset; right:-4px;}
+    .resize-bar:active, .resize-bar.dragging {background:#8bb0e9;}
+    .profile-below {
+      width:100%; position:relative;
+      /* margin-top은 동적으로 조정됨 */
+      transition:margin-top .3s;
+    }
+    #profile-photo-box {
+      min-width: 34px; min-height: 34px; max-width:130px; max-height:130px;
+      width:84px; height:84px; margin-bottom:0;
+      position: absolute; left: 50%; transform: translateX(-50%);
+      top: 55px; /* 인쇄 시 기본 사진 위치 더 아래로 */
+      display: none; transition: width .2s, height .2s, top .2s;
+      justify-content: center; align-items: center;
+      z-index:2;
+    }
+    #profile-photo-box.active {display: flex;}
+    #profile-photo {
+      width: 100%; height: 100%; border-radius:50%; object-fit:cover;
+      border: 3px solid #a7bdd6; box-shadow:0 2px 8px rgba(90,140,190,0.07);
+      transition: width .2s, height .2s;
+      display:block; margin:auto;
+    }
+    .contact-info, .skills, .languages, .strengths, .hobbies {
+      margin-bottom: 19px; width:100%; padding-bottom: 5px; border-bottom: 0.7px solid #e3eaec;
+      line-height: 1.19; font-size:1.07em;
+    }
+    .skills { padding-bottom: 8px;}
+    .skills-category {font-weight:700; margin-bottom:7px; color:#265286;}
+    .skills-list {margin-left:13px; margin-bottom:13px;}
+    .languages-list, .strengths-list, .hobbies-list {margin-left:15px; margin-bottom:7px;}
+    section.right {
+      min-width:184px; max-width:900px; width:67%;
+      padding:88px 20px 28px 36px; border-left: 1.6px solid #eaf0fc;
+      height:297mm; box-sizing: border-box; overflow:auto;
+      transition: width 0.15s;
+    }
+    .header-name {font-size:2.13em; font-weight:bold; letter-spacing:-1px; color:#14426A; margin-bottom:4px;}
+    .header-title {font-size:1.16em; color:#2477bb; font-weight:500; margin-bottom: 23px;}
+    .section-title {font-size:1.09em; font-weight:700; margin-top:28px; margin-bottom:13px; color: #1675e0;}
+    .add-btn { background:#e8f7ff; color:#2679b7; border:1px solid #bbe9fb; font-size:0.97em; padding:2px 9px; margin-left:18px; border-radius:7px; cursor:pointer; vertical-align:middle;}
+    .add-btn:hover { background:#ccedfb; }
+    .job-item, .education-item {
+      margin-bottom: 22px; border-bottom:1px dotted #ebeefa; padding-bottom:12px; position:relative;
+      transition:background 0.17s; line-height:1.24; font-size:1.07em;
+    }
+    .job-header, .education-header {display:flex; justify-content:space-between; align-items:baseline;}
+    .job-title, .education-degree{font-weight: bold; color: #163a60;}
+    .job-company, .education-school{color:#4b6381; margin-left:10px;}
+    .job-period, .education-year{color:#2477bb;}
+    .awards-list, .references-list{margin-left: 15px; font-size:1.09em; margin-bottom:19px;}
+    .references-text{font-style:italic; color:#6279a1;}
+    [contenteditable]:focus {outline: 2px solid #2679b7;}
+    @media print {
+      @page { size: A4; margin: 0;}
+      html, body { width: 210mm; height: 297mm; margin:0 !important; padding:0 !important; }
+      #toolbar, .add-btn, #profile-photo-ui, .hide-print, .resize-bar { display: none !important;}
+      .container {box-shadow:none !important; margin:0 !important; width: 210mm !important; min-width:210mm!important; max-width:210mm!important; height:297mm!important; min-height:297mm!important; max-height:297mm!important;}
+      aside.left,section.right{padding-top:88px !important;}
+      #profile-photo-box {top:55px !important; left:50% !important; transform:translateX(-50%) !important;}
+      /* 프로필 아래 간격도 JS에서 조정됨 */
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button onclick="exec('bold')" title="굵게"><b>B</b></button>
+    <button onclick="exec('italic')" title="이탤릭"><i>I</i></button>
+    <button onclick="exec('underline')" title="밑줄"><u>U</u></button>
+    <select onchange="exec('formatBlock',this.value);this.selectedIndex=0;" title="글자 스타일">
+      <option selected disabled>스타일</option>
+      <option value='h1'>제목1</option>
+      <option value='h2'>제목2</option>
+      <option value='p'>본문</option>
+    </select>
+    <select onchange="exec('fontSize',this.value)" title="글자 크기">
+      <option selected disabled>크기</option>
+      <option value="2">작게</option>
+      <option value="4">보통</option>
+      <option value="6">크게</option>
+    </select>
+    <span id="profile-photo-ui" class="hide-print">
+      <label style="margin-right:8px;">
+        <img src="https://cdn-icons-png.flaticon.com/128/1828/1828926.png" alt="업로드" style="width:22px;vertical-align:middle;margin-right:3px;">
+        프로필 사진 첨부<input type="file" accept="image/*" style="display:none" onchange="uploadPhoto(event)">
+      </label>
+      <label for="photoSlider">사진 비율</label>
+      <input type="range" id="photoSlider" min="0" max="100" value="50" style="width:90px" oninput="resizePhoto(this.value)">
+    </span>
+    <button onclick="window.print()" title="인쇄 또는 PDF 저장">🖨️ 인쇄/PDF</button>
+    <button onclick="undo()" title="Undo(Ctrl+Z)">↩ Undo</button>
+    <button onclick="redo()" title="Redo(Ctrl+Y)">↪ Redo</button>
+    <button onclick="delSelected()" title="블록/항목 삭제">❌ 항목 삭제</button>
+    <button id="saveBtn" onclick="saveHtml()">저장</button>
+  </div>
+  <div class="container" id="editor" spellcheck="false">
+    <aside class="left" id="leftPane">
+      <div id="profile-photo-box">
+        <img id="profile-photo" src="" alt="프로필사진">
+      </div>
+      <div class="profile-below">
+        <div class="contact-info" contenteditable="true">
+          <b>전화</b>: <a href="tel:010-1234-5678">010-1234-5678</a><br>
+          <b>이메일</b>: <a href="mailto:test@email.com">test@email.com</a><br>
+          <b>LinkedIn</b>: <a href="https://linkedin.com/in/yourprofile">프로필</a>
+        </div>
+        <div class="skills" contenteditable="true">
+          <div class="skills-category">Technical Skills</div>
+          <div class="skills-list">Python (Advanced)</div>
+          <div class="skills-category">Soft Skills</div>
+          <div class="skills-list">Problem Solving, Collaboration</div>
+        </div>
+        <div class="languages" contenteditable="true">
+          <div class="skills-category">Languages</div>
+          <div class="languages-list">Korean (Native), English (Business C1)</div>
+        </div>
+        <div class="strengths" contenteditable="true">
+          <div class="skills-category">Strengths</div>
+          <div class="strengths-list">Data Analysis<br>Leadership</div>
+        </div>
+        <div class="hobbies" contenteditable="true">
+          <div class="skills-category">Hobbies</div>
+          <div class="hobbies-list">Running<br>Reading</div>
+        </div>
+      </div>
+    </aside>
+    <div class="resize-bar" id="resizeBar"></div>
+    <section class="right" id="rightPane">
+      <div class="header-name" contenteditable="true">홍길동</div>
+      <div class="header-title" contenteditable="true">Senior Web Engineer</div>
+      <div class="summary" contenteditable="true">
+        <strong>Data-driven</strong> developer with <u>agile mindset</u>.<br>
+        Well-versed in full-stack engineering.<br>
+      </div>
+      <div class="section-title">
+        Professional Experience
+        <button class="add-btn hide-print" onclick="addJob()">+ 경력 추가</button>
+      </div>
+      <div id="job-list">
+        <div class="job-item" contenteditable="true">
+          <div class="job-header">
+            <span class="job-title">Software Engineer</span>
+            <span class="job-company">FinTech Inc. | Seoul</span>
+            <span class="job-period">2022.01 - Present</span>
+          </div>
+          <ul>
+            <li>Developed scalable payment system.</li>
+            <li>Led team, resulting in 15% faster launches.</li>
+          </ul>
+        </div>
+        <div class="job-item" contenteditable="true">
+          <div class="job-header">
+            <span class="job-title">Web Developer</span>
+            <span class="job-company">Dev Startup | Seoul</span>
+            <span class="job-period">2020.01 - 2021.12</span>
+          </div>
+          <ul>
+            <li>Created company website from scratch.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section-title">
+        Education
+        <button class="add-btn hide-print" onclick="addEdu()">+ 학력 추가</button>
+      </div>
+      <div id="edu-list">
+        <div class="education-item" contenteditable="true">
+          <div class="education-header">
+            <span class="education-degree">B.S. Computer Science</span>
+            <span class="education-school">Korea University</span>
+            <span class="education-year">2020</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-title">Awards</div>
+      <ul class="awards-list" contenteditable="true">
+        <li>Best Developer Award (2023)</li>
+      </ul>
+      <div class="section-title">References</div>
+      <div class="references-text" contenteditable="true">Available upon request</div>
+    </section>
+  </div>
+  <script>
+    function exec(cmd, val=null){ document.execCommand(cmd,false,val);}
+    function undo(){ document.execCommand('undo'); }
+    function redo(){ document.execCommand('redo'); }
+    let deleteHistory = [];
+    function delSelected(){
+      let sel=window.getSelection();
+      if(!sel.rangeCount) return;
+      let el = sel.anchorNode;
+      if(el.nodeType===3) el=el.parentElement;
+      while(el &&
+        !el.classList.contains('job-item') &&
+        !el.classList.contains('education-item') &&
+        !el.classList.contains('section-title') &&
+        !el.classList.contains('header-name') &&
+        !el.classList.contains('header-title') &&
+        !el.classList.contains('summary')) {
+        el = el.parentElement;
+        if(!el || el===document.body){return;}
+      }
+      if(el){
+        deleteHistory.push({html: el.outerHTML, parent: el.parentElement, next: el.nextSibling});
+        el.remove();
+      }
+    }
+    document.addEventListener('keydown', function(e){
+      if(e.ctrlKey && e.key==='z'){
+        if(deleteHistory.length){
+          let last = deleteHistory.pop();
+          if(last.next) last.parent.insertBefore(htmlToElem(last.html), last.next);
+          else last.parent.appendChild(htmlToElem(last.html));
+          e.preventDefault();
+        }
+      }
+    });
+    function htmlToElem(html){
+      let temp = document.createElement('div');
+      temp.innerHTML = html;
+      return temp.firstElementChild;
+    }
+    // base64 사진
+    function uploadPhoto(e){
+      const file=e.target.files[0];
+      if(!file) return;
+      let reader = new FileReader();
+      reader.onload = function(ev){
+        let box = document.getElementById('profile-photo-box');
+        let img = document.getElementById('profile-photo');
+        box.classList.add("active");
+        img.src = ev.target.result;
+        resizePhoto(document.getElementById('photoSlider').value);
+      };
+      reader.readAsDataURL(file);
+    }
+    // 사진 사이즈/위치 동적 적용
+    function resizePhoto(val){
+      let img = document.getElementById('profile-photo');
+      let box = document.getElementById('profile-photo-box');
+      let below = document.querySelector('.profile-below');
+      let size = Math.round(34 + (130 - 34)*val/100);
+      img.style.width = img.style.height = size + "px";
+      box.style.width = box.style.height = size + "px";
+      box.style.left = "50%";
+      box.style.transform = "translateX(-50%)";
+      box.style.top = "55px";
+      let marginBase = 118;
+      // 사진 비율이 50을 초과하면 추가 margin (아랫부분 자동으로 맞춰내림)
+      if(val > 50){
+        // 초과 비율만큼 추가 margin
+        let extra = Math.round((size-84)*1.07); // 성장폭만큼 아래로
+        below.style.marginTop = (marginBase + extra) + "px";
+      } else {
+        below.style.marginTop = marginBase + "px";
+      }
+    }
+    window.addEventListener('DOMContentLoaded',function(){
+      document.getElementById('profile-photo-box').classList.remove('active');
+      resizePhoto(document.getElementById('photoSlider').value);
+    });
+    function addJob(){
+      let parent = document.getElementById('job-list');
+      let newHTML = `<div class="job-item" contenteditable="true">
+        <div class="job-header">
+          <span class="job-title">New Position</span>
+          <span class="job-company">Company | Location</span>
+          <span class="job-period">YYYY.MM - YYYY.MM</span>
+        </div>
+        <ul>
+          <li>Describe achievement here.</li>
+        </ul>
+      </div>`;
+      parent.insertAdjacentHTML('beforeend', newHTML);
+    }
+    function addEdu(){
+      let parent = document.getElementById('edu-list');
+      let newHTML = `<div class="education-item" contenteditable="true">
+        <div class="education-header">
+          <span class="education-degree">New Degree</span>
+          <span class="education-school">School Name</span>
+          <span class="education-year">YYYY</span>
+        </div>
+      </div>`;
+      parent.insertAdjacentHTML('beforeend', newHTML);
+    }
+    var resizeBar = document.getElementById('resizeBar');
+    var leftPane = document.getElementById('leftPane');
+    var rightPane = document.getElementById('rightPane');
+    var container = document.getElementById('editor');
+    let isDragging = false;
+    resizeBar.addEventListener('mousedown',function(e){
+      isDragging = true;
+      resizeBar.classList.add('dragging');
+      document.body.style.cursor="ew-resize";
+    });
+    document.addEventListener('mousemove',function(e){
+      if(!isDragging) return;
+      let rect = container.getBoundingClientRect();
+      let x = e.clientX - rect.left;
+      let perc = Math.max(15,Math.min(60, x/rect.width*100));
+      leftPane.style.width = perc+"%";
+      rightPane.style.width = (100-perc)+"%";
+    });
+    document.addEventListener('mouseup',function(){
+      if(isDragging){
+        isDragging = false;
+        resizeBar.classList.remove('dragging');
+        document.body.style.cursor="";
+      }
+    });
+    function saveHtml(){
+      let img = document.getElementById('profile-photo');
+      if(img && img.src && !img.src.startsWith('data:')) {
+        alert('사진 첨부시, 저장 버튼을 누르면 사진이 정상 저장됩니다. 반드시 사진을 업로드 해주세요!');
+        return;
+      }
+      let doctype = "<!DOCTYPE html>";
+      let htmlStr = document.documentElement.outerHTML;
+      let blob = new Blob([doctype + htmlStr], {type: "text/html"});
+      let a = document.createElement("a");
+      a.download = "Resume.html";
+      a.href = URL.createObjectURL(blob);
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{document.body.removeChild(a); URL.revokeObjectURL(a.href);},600);
+    }
+  </script>
+</body>
+</html>
